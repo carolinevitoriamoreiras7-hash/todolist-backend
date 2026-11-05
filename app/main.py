@@ -15,17 +15,13 @@ from app.core.exceptions import (
     NaoAutenticado,
 )
 from app.db.database import criar_tabelas
-# Cada família de erro de domínio corresponde a um código HTTP. A ordem
-# importa: vale o primeiro tipo que casar, do mais específico ao mais geral.
 STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
     (RecursoNaoEncontrado, 404),
     (EmailJaCadastrado, 409),
+    (NaoAutenticado, 401),
     (RegraDeNegocioViolada, 422),
     (ErroDeDominio, 400),
-    (NaoAutenticado, 401),
 )
- 
- 
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     """Confere a configuração e prepara o banco na subida da aplicação
@@ -37,28 +33,23 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
     obter_configuracao().segredo_jwt()
     criar_tabelas()
     yield
- 
- 
 app = FastAPI(
     title="Todo List API",
     description="Backend do ToDo List — curso Desenvolvedor Full Stack (SENAC).",
     version="0.3.0",
     lifespan=ciclo_de_vida,
 )
- 
 @app.exception_handler(ErroDeDominio)
 async def tratar_erro_de_dominio(
     _request: Request, excecao: ErroDeDominio
 ) -> JSONResponse:
-    """Converte qualquer erro de domínio na resposta HTTP correspondente.
-    """
+    """Converte qualquer erro de domínio na resposta HTTP correspondente."""
     codigo = next(
         (codigo for tipo, codigo in STATUS_POR_ERRO if isinstance(excecao, tipo)), 400
     )
-    return JSONResponse(status_code=codigo, content={"detail": excecao.mensagem})
- 
- 
-
+    return JSONResponse(
+        status_code=codigo, content={"detail": excecao.mensagem}
+        )
 def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
     """Traduz um erro do Pydantic em (campo, mensagem em português)."""
     campo = str(erro["loc"][-1]) if erro.get("loc") else "dados"
@@ -89,7 +80,11 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError
 ) -> JSONResponse:
-    """Traduz erros de validação do Pydantic em respostas HTTP 422.
+    """Responde 422 com `detail` sempre em TEXTO, em português.
+
+    O padrão do FastAPI devolve `detail` como uma lista de objetos em inglês -
+    difícil de mostrar ao usuário. Aqui `detail` traz a primeira mensagem 
+    pronta para exibir, e `erros` traz a lista completa, campo a campo.
     """
     erros = [
         {"campo": campo, "mensagem": mensagem}

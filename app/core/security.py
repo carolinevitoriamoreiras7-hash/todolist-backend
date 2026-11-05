@@ -22,9 +22,9 @@ class HashDeSenha(ABC):
 class HashBcrypt(HashDeSenha):
     """Implementação de hash de senha usando o algoritmo bcrypt
     """
-    def gerar(self, senha: str, hash_armazenado: str) -> str:
+    def gerar(self, senha: str) -> str:
         return bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
-    def verificar(self, senha: str) -> bool:
+    def verificar(self, senha: str, hash_armazenado: str) -> bool:
         senha_bytes = senha.encode("utf-8")
         if len (senha_bytes) > LIMITE_BYTES_SENHA:
             # Nenhuma senha cadastrada passa desse tamanho; responder "não confere"
@@ -42,7 +42,7 @@ class TokenJWT:
     ALGORITMO = "HS256"
     def __init__(self, segredo: str, expira_minutos: int) -> None:
         self._segredo = segredo
-        self.validade = timedelta(minutes=expira_minutos)
+        self._validade = timedelta(minutes=expira_minutos)
     def emitir(self, usuario_id: int, agora: datetime | None = None) -> TokenEmitido:
         """Cria um token válido pelo tempo configurado."""
         expira_em = (agora or datetime.now(timezone.utc)) + self._validade

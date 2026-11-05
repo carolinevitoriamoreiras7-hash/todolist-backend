@@ -6,8 +6,6 @@ from app.core.datas import agora_utc
 from app.core.exceptions import ValorInvalido
 from app.core.security import HashDeSenha
 from app.db.database import Base
- 
- 
 class Usuario(Base):
     """Usuário do sistema."""
  
