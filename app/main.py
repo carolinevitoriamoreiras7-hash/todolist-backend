@@ -1,20 +1,23 @@
 """Ponto de entrada: cria o app, registra as rotas e traduz erros em HTTP."""
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from app.api.routers import usuarios
+from app.api.routers import tasks, usuarios
 from app.core.config import obter_configuracao
 from app.core.exceptions import (
     EmailJaCadastrado,
     ErroDeDominio,
+    NaoAutenticado,
     RecursoNaoEncontrado,
     RegraDeNegocioViolada,
-    NaoAutenticado,
 )
 from app.db.database import criar_tabelas
+# Cada família de erro de domínio corresponde a um código HTTP. A ordem
+# importa: vale o primeiro tipo que casar, do mais específico ao mais geral.
 STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
     (RecursoNaoEncontrado, 404),
     (EmailJaCadastrado, 409),
@@ -22,21 +25,18 @@ STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
     (RegraDeNegocioViolada, 422),
     (ErroDeDominio, 400),
 )
+
+
 @asynccontextmanager
 async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
-    """Confere a configuração e prepara o banco na subida da aplicação
-
-    `segredo_jwt()` é chamado aqui de propósito: sem `JWT_SECRET`, a API se 
-    recusa a subir com uma mensagem explicando o que fazer - em vez de subir
-    e só falhar no primeiro login
-    """
+    """Confere a configuração e prepara o banco na subida da aplicação"""
     obter_configuracao().segredo_jwt()
     criar_tabelas()
     yield
 app = FastAPI(
     title="Todo List API",
     description="Backend do ToDo List — curso Desenvolvedor Full Stack (SENAC).",
-    version="0.3.0",
+    version="0.6.0",
     lifespan=ciclo_de_vida,
 )
 @app.exception_handler(ErroDeDominio)
@@ -47,9 +47,15 @@ async def tratar_erro_de_dominio(
     codigo = next(
         (codigo for tipo, codigo in STATUS_POR_ERRO if isinstance(excecao, tipo)), 400
     )
+    # O padrão HTTP pede que toda resposta 401 diga COMO se autenticar
+    cabecalhos = {"WWW-Authenticate": "Bearer"} if codigo == 401 else None
     return JSONResponse(
-        status_code=codigo, content={"detail": excecao.mensagem}
-        )
+        status_code=codigo, content={"detail": excecao.mensagem}, headers=cabecalhos
+    )
+    
+
+
+
 def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
     """Traduz um erro do Pydantic em (campo, mensagem em português)."""
     campo = str(erro["loc"][-1]) if erro.get("loc") else "dados"
@@ -80,12 +86,7 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError
 ) -> JSONResponse:
-    """Responde 422 com `detail` sempre em TEXTO, em português.
-
-    O padrão do FastAPI devolve `detail` como uma lista de objetos em inglês -
-    difícil de mostrar ao usuário. Aqui `detail` traz a primeira mensagem 
-    pronta para exibir, e `erros` traz a lista completa, campo a campo.
-    """
+    """Responde 422 com `detail` sempre em TEXTO, em português. """
     erros = [
         {"campo": campo, "mensagem": mensagem}
         for campo, mensagem in map(_mensagem_de_validacao, excecao.errors())
@@ -94,7 +95,11 @@ async def tratar_erro_de_validacao(
         status_code=422,
         content={"detail": erros[0]["mensagem"] if erros else "Dados inválidos.", "erros": erros},
     )
+
 app.include_router(usuarios.router)
+app.include_router(tasks.router)
+
+
 @app.get("/", tags=["Status"], summary="Verificar se a API está no ar")
 def raiz() -> dict[str, str]:
     """Confirma que a API está no ar e indica onde está a documentação."""
