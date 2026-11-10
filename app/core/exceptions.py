@@ -15,6 +15,9 @@ class RecursoNaoEncontrado(ErroDeDominio):
 class UsuarioNaoEncontrado(RecursoNaoEncontrado):
     mensagem = "Usuário não encontrado."
 
+class TarefaNaoEncontrada(RecursoNaoEncontrado):
+    mensagem = "Tarefa não encontrada"
+
 # Regra de negócio violada - a camada HTTP traduz esta família em 422
 
 class RegraDeNegocioViolada(ErroDeDominio):
@@ -50,3 +53,7 @@ class CredenciaisInvalidas(NaoAutenticado):
 class TokenInvalido(NaoAutenticado):
     """Token de acesso ausente, expirado, adulterado ou de usuário removido."""
     mensagem = "Sessão inválida. Entre novamente."
+
+class AcessoNaoAutorizado(ErroDeDominio):
+    """Tentativas de mexer em uma tarefa que pertence a outro usuário."""
+    mensagem = "Esta tarefa pertence a outro usuário"

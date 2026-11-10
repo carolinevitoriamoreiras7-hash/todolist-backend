@@ -1,5 +1,4 @@
 """Ponto de entrada: cria o app, registra as rotas e traduz erros em HTTP."""
-
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -9,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.api.routers import tasks, usuarios
 from app.core.config import obter_configuracao
 from app.core.exceptions import (
+    AcessoNaoAutorizado,
     EmailJaCadastrado,
     ErroDeDominio,
     NaoAutenticado,
@@ -22,6 +22,7 @@ STATUS_POR_ERRO: tuple[tuple[type[ErroDeDominio], int], ...] = (
     (RecursoNaoEncontrado, 404),
     (EmailJaCadastrado, 409),
     (NaoAutenticado, 401),
+    {AcessoNaoAutorizado, 403},
     (RegraDeNegocioViolada, 422),
     (ErroDeDominio, 400),
 )
@@ -36,7 +37,7 @@ async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Todo List API",
     description="Backend do ToDo List — curso Desenvolvedor Full Stack (SENAC).",
-    version="0.7.0",
+    version="0.8.0",
     lifespan=ciclo_de_vida,
 )
 @app.exception_handler(ErroDeDominio)
@@ -82,6 +83,8 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
         # Mensagens dos nossos próprios validadores já estão em português.
         return campo, str(erro.get("msg", "")).removeprefix("Value error, ")
     return campo, mensagens.get(tipo, f"Valor inválido em '{campo}'.")
+
+
 @app.exception_handler(RequestValidationError)
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError

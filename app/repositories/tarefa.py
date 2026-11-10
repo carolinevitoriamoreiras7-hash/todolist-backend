@@ -24,6 +24,6 @@ class TarefaRepositorio(RepositorioBase[Tarefa]):
             .filter(Tarefa.usuario_id == usuario_id)
             # Desempate pelo id: tarefas criadas no mesmo instante saem
             # sempre na mesma ordem
-            .order_by(Tarefa.criado_em.desc(), Tarefa.id.desc())
+            .order_by(Tarefa.criado_em.desc(), Tarefa.id.desc(), Tarefa.id.desc())
             .all()
         )
