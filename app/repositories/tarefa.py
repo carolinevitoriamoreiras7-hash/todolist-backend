@@ -9,6 +9,7 @@ from app.repositories.base import RepositorioBase
 @dataclass(frozen=True)
 class FiltroDeTarefas:
     """Críterios de uma consulta de tarefas."""
+ 
     usuario_id: int
     status: StatusTarefa | None = None
     prioridade: PrioridadeTarefa | None = None  
@@ -23,7 +24,6 @@ class PaginaDeTarefas:
     """Uma página da listagem e o total de tarefas que atendem ao filtro """
     tarefas: list[Tarefa]
     total: int
-
 class TarefaRepositorio(RepositorioBase[Tarefa]):
     """Acesso aos dados de tarefa."""
     _ORDEM_POR_PRIORIDADE = case(
@@ -40,11 +40,13 @@ class TarefaRepositorio(RepositorioBase[Tarefa]):
             CampoOrdenacao.PRIORIDADE: self._ORDEM_POR_PRIORIDADE,
         }
         return colunas[campo]
+   
     def listar(self, filtro: FiltroDeTarefas) -> PaginaDeTarefas:
         """Lista as tarefas de usuário conforme os critérios informados."""
         consulta = self._sessao.query(Tarefa).filter(
             Tarefa.usuario_id == filtro.usuario_id
         )
+ 
         if filtro.status is not None:
             consulta = consulta.filter(Tarefa.status == filtro.status.value)
         if filtro.prioridade is not None:
@@ -56,27 +58,19 @@ class TarefaRepositorio(RepositorioBase[Tarefa]):
                 Tarefa.prazo.isnot(None), Tarefa.prazo <= filtro.prazo_ate
             )
         if filtro.busca:
-            # `icontains` = "contém, sem diferenciar maiúsculas" (ILIKE no
-            # PostgreSQL). `autoescape` faz `%` e `_` digitados pelo usuário
-            # serem procurados como texto, e não como curingas do LIKE
+ 
             consulta = consulta.filter(
                 Tarefa.titulo.icontains(filtro.busca, autoescape=True)
             )
-
+ 
             # O total é contado ANTES de aplicar limite e deslocamento
         total  = consulta.order_by(None).count()
-
+ 
         coluna = self._coluna_de_ordenacao(filtro.ordenar_por)
         ordenacao =[coluna.desc() if filtro.ordem is Ordem.DESC else coluna.asc()]
         if filtro.ordenar_por is CampoOrdenacao.PRAZO:
-                # Tarefa sem prazo vai sempre para o FIM, em qualquer sentido. Cada
-                # banco põe o NULL num lugar diferente; este critério vem antes e
-                # resolve igual em todos: 0 = tem prazo, 1 = sem prazo
                 ordenacao.insert(0, case((Tarefa.prazo.is_(None), 1), else_=0))
-            # Desempate pelo id: sem ele, tarefas com o mesmo valor (ex.: mesma
-            # prioridade) poderiam trocar de lugar entre uma página e outra
         ordenacao.append(Tarefa.id.desc())
-
         tarefas = (
                 consulta.order_by(*ordenacao)
                 .offset(filtro.deslocamento)
@@ -84,3 +78,8 @@ class TarefaRepositorio(RepositorioBase[Tarefa]):
                 .all()
         )
         return PaginaDeTarefas(tarefas=tarefas, total=total)
+    def todas_do_usuario(self, usuario_id: int) -> list[Tarefa]:
+        """Todas as tarefas de um uusário, sem filtro nem limite (para o resumo)."""
+        return(
+            self._sessao.query(Tarefa).filter(Tarefa.usuario_id == usuario_id).all()
+        )

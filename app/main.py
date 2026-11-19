@@ -38,7 +38,7 @@ app = FastAPI(
         "Para usar as rotas protegidas: faça login em `POST /usuarios/login`, "
         "copie o `acessToken` e cole no botão **Authorize**."
     ),
-    version="0.11.0",
+    version="0.12.0",
     lifespan=ciclo_de_vida,
 )
 app.add_middleware(
@@ -53,7 +53,11 @@ app.add_middleware(
 async def tratar_erro_de_dominio(
     _request: Request, excecao: ErroDeDominio
 ) -> JSONResponse:
-    """Converte qualquer erro de domínio na resposta HTTP correspondente."""
+    """Converte qualquer erro de domínio na resposta HTTP correspondente.
+    Um único tratador atende a hierarquia inteira de exceções - é polimorfismo
+    aplicado ao tratamento de erro. As rotas não precisam conhecer códigos de
+    status de negócio e o domínio não precisa conhecer HTTP
+    """
     codigo = next(
         (codigo for tipo, codigo in STATUS_POR_ERRO if isinstance(excecao, tipo)), 400
     )
@@ -88,8 +92,8 @@ def _mensagem_de_validacao(erro: dict[str, Any]) -> tuple[str, str]:
         # Mensagens dos nossos próprios validadores já estão em português.
         return campo, str(erro.get("msg", "")).removeprefix("Value error, ")
     return campo, mensagens.get(tipo, f"Valor inválido em '{campo}'.")
-
-
+ 
+ 
 @app.exception_handler(RequestValidationError)
 async def tratar_erro_de_validacao(
     _request: Request, excecao: RequestValidationError
